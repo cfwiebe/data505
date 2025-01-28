@@ -1,0 +1,95 @@
+**Abstract:**
+
+This is a technical blog post of **both** an HTML file *and* [.qmd file](src/wine_of_pnw.qmd) hosted on GitHub pages.
+
+# Setup
+
+1.  Change the author of this RMD file to be yourself and delete this line.
+2.  Modify if necessary the below code so that you can successfully load `wine.rds` then delete this line.
+3.  In the space provided after the R chunk, explain what thecode is doing (line by line) then delete this line.
+4.  Get your [GitHub Pages](https://docs.github.com/en/pages/quickstart) ready.
+
+**Step Up Code:**
+```{r}
+library(tidyverse)
+
+wine <- readRDS(gzcon(url("https://github.com/cd-public/D505/raw/master/dat/wine.rds"))) %>%
+  filter(province=="Oregon" | province=="California" | province=="New York") %>% 
+  mutate(cherry=as.integer(str_detect(description,"[Cc]herry"))) %>% 
+  mutate(lprice=log(price)) %>% 
+  select(lprice, points, cherry, province)
+```
+
+**Explanataion:**
+
+> <span style="color:red;font-weight:bold">TODO</span>: The code imports the dataset from github, then filters to only include observations from Oregon, California, and New York. It then creates a new binary variable, cherry, with wines receiving a 1 if their description includes the word "cherry," and a 0 if it doesn't. The next line creates another new variable, lprice, that puts the price variable on a logarithmic scale. Finally, the code subsets four variables from the dataset: lprice, points, cherry, and province.
+
+# Multiple Regression
+
+## Linear Models
+
+First run a linear regression model with log of price as the dependent variable and 'points' and 'cherry' as features (variables).
+
+```{r}
+m1 <- lm(lprice ~ points + cherry, wine)
+summary(m1)
+```
+
+**Explanataion:**
+
+> <span style="color:red;font-weight:bold">TODO</span>: The code runs a linear regression model with log of price as the dependent variable and 'points' and 'cherry' as features.
+
+> <span style="color:red;font-weight:bold">TODO</span>: RMSE, in this case, is a measure of the model's predictive accuracy. The RMSE in this case is 0.4688, which means that on average, a point is 0.4688 units of the lprice variable away from its prediction.
+
+## Interaction Models
+
+Add an interaction between 'points' and 'cherry'. 
+
+```{r}
+m2 <- lm(lprice ~ points * cherry, wine)
+summary(m2)
+```
+
+> <span style="color:red;font-weight:bold">TODO</span>: I added an * in the model to add the interaction term without removing their individual terms.
+
+> <span style="color:red;font-weight:bold">TODO</span>: The model is marginally more accurate; on average, points are 0.4686 units away from their predicted value.
+
+### The Interaction Variable
+
+> <span style="color:red;font-weight:bold">TODO</span>: The model shows that the interaction term is significant, meaning the presence of "cherry" as a descriptor affects wine ratings. The coefficient of 0.012663 indicates that the effect of points on the rating is slightly stronger for cherry wines than for non-cherry wines. However, cherry wines are rated about 1.01 points lower on average, based on the main effect of cherry. <br>[Explain as you would to a non-technical manager.](https://youtube.com/clip/UgkxY7ohjoimIef6zpPLjgQHqJcJHeZptuVm?feature=shared)
+
+## Applications
+
+Determine which province (Oregon, California, or New York), does the 'cherry' feature in the data affect price most?
+
+```{r}
+m3 <- lm(lprice ~ cherry * province, wine)
+summary(m3)
+```
+
+> <span style="color:red;font-weight:bold">TODO</span>: The cherry feature affects the price most in Oregon, as the interaction term cherry:provinceOregon is statistically significant and adds the most to the price, with an increase of 0.13 units. The effect of cherry in New York is not significant, and California serves as the baseline province.
+
+# Scenarios
+
+## On Accuracy
+
+Imagine a model to distinguish New York wines from those in California and Oregon. After a few days of work, you take some measurements and note: "I've achieved 91% accuracy on my model!" 
+
+Should you be impressed? Why or why not?
+
+```{r}
+table(wine$province)
+```
+
+> <span style="color:red;font-weight:bold">TODO</span>: Without seeing a confusion matrix and precision/recall statistics, I'm not thorougly impressed. Already, 79 percent of the wines are from California, meaning if you predicted that every wine was from California, your model would only be 12 percentage points away from the hypothetical model that we are discussing.
+
+## On Ethics
+
+Why is understanding this vignette important to use machine learning in an ethical manner?
+
+> <span style="color:red;font-weight:bold">TODO</span>: Consider that we are using the same predictive modeling techniques, but for human data rather than wine data. Simply going for the highest accuracy on a model might discriminate against smaller groups by focusing only on the larger ones.
+
+## Ignorance is no excuse
+Imagine you are working on a model to predict the likelihood that an individual loses their job as the result of the changing federal policy under new presidential administrations. You have a very large dataset with many hundreds of features, but you are worried that including indicators like age, income or gender might pose some ethical problems. When you discuss these concerns with your boss, she tells you to simply drop those features from the model. Does this solve the ethical issue? Why or why not?
+
+> <span style="color:red;font-weight:bold">TODO</span>: It does not solve the ethical issue, because there are still likely proxies for these variables. It's true that removing these variables from models is often the ethical thing to do, but ignoring them completely is wrong; we must actively work to ensure equal treatment for various groups, which means thinking critically about them and understanding how they affect other variables that could be used in models.
