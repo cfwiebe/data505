@@ -1,0 +1,101 @@
+**Abstract:**
+
+This is a technical blog post of **both** an HTML file *and* [.qmd file](src/wine_features.qmd) hosted on GitHub pages.
+
+# Setup
+
+
+**Step Up Code:**
+```{r}
+library(tidyverse)
+library(caret)
+library(fastDummies)
+library(dplyr)
+library(tidyr)
+wine <- readRDS(gzcon(url("https://github.com/cd-public/D505/raw/master/dat/wine.rds")))
+```
+
+**Explanataion:**
+
+> <span style="color:red;font-weight:bold">TODO</span>: *This chunk of code loads the tidyverse, caret, and fastDummies packages, then reads in the wine dataset from the public github repository.*
+
+# Feature Engineering
+
+We begin by engineering an number of features.
+
+1. Create a total of 10 features (including points). 
+2. Remove all rows with a missing value. 
+3. Ensure only log(price) and engineering features are the only columns that remain in the `wino` dataframe.
+
+```{r}
+wino <- wine %>%
+  mutate(lprice = log(price)) %>%
+  
+  group_by(province) %>%
+  mutate(total_wineries_in_province = n_distinct(winery)) %>%
+  ungroup() %>%
+
+  group_by(region_1) %>%
+  mutate(total_wineries_in_region = n_distinct(winery)) %>%
+  ungroup() %>%
+  
+  group_by(winery) %>%
+  mutate(num_reviews = n()) %>%
+  ungroup() %>%
+  
+  mutate(pinot_noir = ifelse(variety == "Pinot Noir", 1, 0)) %>%
+  
+  mutate(oregon = ifelse(province == "Oregon", 1, 0)) %>%
+  
+  mutate(price_to_points_ratio = price / points) %>%
+  
+  mutate(has_apple = ifelse(str_detect(description, regex("apple", ignore_case = TRUE)), 1, 0)) %>%
+  
+  mutate(has_orange = ifelse(str_detect(description, regex("orange", ignore_case = TRUE)), 1, 0)) %>%
+  
+  mutate(description_length = nchar(description)) %>%
+  
+  mutate(pre_2010 = ifelse(year <= 2010, 1, 0)) %>%
+  
+  select(lprice, total_wineries_in_province, total_wineries_in_region, num_reviews, pinot_noir, oregon,
+         price_to_points_ratio, has_apple, has_orange, description_length, pre_2010) %>%
+  
+  drop_na()
+
+str(wino)
+```
+
+# Caret
+
+We now use a train/test split to evaluate the features.
+
+1. Use the Caret library to partition the wino dataframe into an 80/20 split. 
+2. Run a linear regression with bootstrap resampling. 
+3. Report RMSE on the test partition of the data.
+
+```{r}
+set.seed(123)
+
+trainIndex <- createDataPartition(wino$lprice, p = 0.8, list = FALSE)
+trainData <- wino[trainIndex, ]
+testData  <- wino[-trainIndex, ]
+
+train_control <- trainControl(method = "boot", number = 100)
+
+lm_model <- train(lprice ~ ., data = trainData, method = "lm", trControl = train_control)
+
+print(lm_model)
+
+predictions <- predict(lm_model, newdata = testData)
+
+rmse_value <- RMSE(predictions, testData$lprice)
+cat("Test RMSE:", rmse_value, "\n")
+```
+
+# Variable selection
+
+We now graph the importance of your 10 features.
+
+```{r}
+plot(varImp(lm_model, scale = TRUE))
+```
