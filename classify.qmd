@@ -1,0 +1,122 @@
+---
+title: "Classification"
+author: "Charlie Wiebe"
+date: "02/24/2025"
+
+---
+
+**Abstract:**
+
+This is a technical blog post of **both** an HTML file *and* [.qmd file](https://raw.githubusercontent.com/cd-public/D505/refs/heads/master/hws/src/classify.qmd) hosted on GitHub pages.
+
+# 0. Quarto Type-setting
+
+- This document is rendered with Quarto, and configured to embed an images using the `embed-resources` option in the header.
+- If you wish to use a similar header, here's is the format specification for this document:
+
+```email
+format: 
+  html:
+    embed-resources: true
+```
+
+# 1. Setup
+
+**Step Up Code:**
+
+```{r}
+sh <- suppressPackageStartupMessages
+sh(library(tidyverse))
+sh(library(caret))
+sh(library(naivebayes))
+wine <- readRDS(gzcon(url("https://github.com/cd-public/D505/raw/master/dat/pinot.rds")))
+```
+
+# 2. Logistic Concepts
+
+Why do we call it Logistic Regression even though we are using the technique for classification?
+
+> <span style="color:red;font-weight:bold">TODO</span>: *Regression is still being performed, just to give each value a probability, which is then used to assign the values to particular classes.*
+
+# 3. Modeling
+
+We train a logistic regression algorithm to classify a whether a wine comes from Marlborough using:
+
+1. An 80-20 train-test split.
+2. Three features engineered from the description
+3. 5-fold cross validation.
+
+We report Kappa after using the model to predict provinces in the holdout sample.
+
+```{r}
+library(tidytext)
+library(dplyr)
+
+wino <- wine %>%
+  mutate(marlborough = factor(ifelse(province == "Marlborough", 1, 0)))
+
+word_counts <- wino %>%
+  unnest_tokens(word, description) %>%
+  anti_join(stop_words, by = "word") %>%
+  count(marlborough, word, sort = TRUE)
+
+word_tfidf <- word_counts %>%
+  bind_tf_idf(word, marlborough, n) %>%
+  arrange(desc(tf_idf))
+
+top_words <- word_tfidf %>%
+  filter(marlborough == 1) %>%
+  slice_max(tf_idf, n = 10)
+
+print(top_words)
+
+wino <- wino %>%
+  mutate(awatere = factor(ifelse(str_detect(description, regex("awatere", ignore_case = TRUE)), "1", "0"))) %>%
+  mutate(button = factor(ifelse(str_detect(description, regex("button", ignore_case = TRUE)), "1", "0"))) %>%
+  mutate(loire = factor(ifelse(str_detect(description, regex("loire", ignore_case = TRUE)), "1", "0")))
+
+wino <- wino %>%
+  select(marlborough, awatere, button, loire)
+
+wine_index <- createDataPartition(wino$marlborough, p = 0.80, list = FALSE)
+train <- wino[ wine_index, ]
+test <- wino[-wine_index, ]
+table(train$marlborough)
+
+control = trainControl(method = "cv", number = 5)
+get_fit <- function(df) {
+  train(marlborough ~ .,
+        data = df, 
+        trControl = control,
+        method = "glm",
+        family = "binomial",
+        maxit = 100)
+}
+fit <- get_fit(train)
+
+fit
+
+```
+
+
+# 4. Binary vs Other Classification
+
+What is the difference between determining some form of classification through logistic regression versus methods like $K$-NN and Naive Bayes which performed classifications.
+
+> <span style="color:red;font-weight:bold">TODO</span>: *Logistic regression is a type of parametric model, whereas K-NN and Naive Bayes are non-parametric. This means that the latter two methods don't assume a specific form for the relationship between predictive features and the output variable, and logistic regression does (linear in the log-odds).*
+
+
+# 5. ROC Curves
+
+We can display an ROC for the model to explain your model's quality.
+
+```{r}
+library(pROC)
+prob <- predict(fit, newdata = test, type = "prob")[,2]
+myRoc <- roc(test$marlborough, prob)
+plot(myRoc)
+
+auc(myRoc)
+```
+
+> <span style="color:red;font-weight:bold">TODO</span>: *Based on the ROC, I have a very poor model. The curve is nearly on top of the diagonal line, and my AUC is barely over 0.5 (0.522). Thus, my model performs very marginally better than it would with random chance.*
